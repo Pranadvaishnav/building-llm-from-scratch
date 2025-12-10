@@ -71,15 +71,19 @@ class MultiHeadAttention(nn.Module):
 
         # Compute scaled dot-product attention (aka self-attention) with a causal mask
         attn_scores = queries @ keys.transpose(2, 3)  # Dot product for each head
+        print ("attention scores:\n", attn_scores)
 
         # Original mask truncated to the number of tokens and converted to boolean
         mask_bool = self.mask.bool()[:num_tokens, :num_tokens]
 
         # Use the mask to fill attention scores
         attn_scores.masked_fill_(mask_bool, -torch.inf)
-        
+        print ("masked attention scores:\n", attn_scores)
+
         attn_weights = torch.softmax(attn_scores / keys.shape[-1]**0.5, dim=-1)
+        print ("attention weights after softmax:\n", attn_weights)
         attn_weights = self.dropout(attn_weights)
+        print( "attention weights after dropout:\n", attn_weights)
 
         # Shape: (b, num_tokens, num_heads, head_dim)
         context_vec = (attn_weights @ values).transpose(1, 2) 
@@ -89,6 +93,34 @@ class MultiHeadAttention(nn.Module):
         context_vec = self.out_proj(context_vec) # optional projection
 
         return context_vec
+"""
+Step 1: Reduce the projection dim to match desired output dim
+Step 2: Use a Linear layer to combine head outputs
+Step 3: Tensor shape: (b, num_tokens, d_out)
+Step 4: We implicitly split the matrix by adding a `num_heads` dimension. Then we unroll last dim: (b,
+num_tokens, d_out) -> (b, num_tokens, num_heads, head_dim)
+Step 5: Transpose from shape (b, num_tokens, num_heads, head_dim) to (b, num_heads, num_tokens, head_dim)
+Step 6: Compute dot product for each head
+Step 7: Mask truncated to the number of tokens
+Step 8: Use the mask to fill attention scores
+Step 9: Tensor shape: (b, num_tokens, n_heads, head_dim)
+Step 10: Combine heads, where self.d_out = self.num_heads * self.head_dim
+Step 11: Add an optional linear projection
+"""
+#The splitting of the query, key, and value tensors, is achieved through tensor reshaping and transposing operations using PyTorch's .view and .transpose methods.
+#The input is first transformed (via linear layers for queries, keys, and values) and then reshaped to represent multiple heads.
+#The key operation is to split the d_out dimension into num_heads and head_dim, where head_dim = d_out / num_heads.
+#This splitting is then achieved using the .view method: a tensor of dimensions (b, num_tokens, d_out) is reshaped to dimension (b, num_tokens, num_heads, head_dim).
+#The tensors are then transposed to bring the num_heads dimension before the num_tokens dimension, resulting in a shape of (b, num_heads, num_tokens, head_dim).
+#This transposition is crucial for correctly aligning the queries, keys, and values across the different heads and performing batched matrix multiplications efficiently.
+#To illustrate this batched matrix multiplication, suppose we have the following example tensor:
+#Continuing with MultiHeadAttention, after computing the attention weights and context vectors, the context vectors from all heads are transposed back to the shape (b, num_tokens, num_heads, head_dim).
+#These vectors are then reshaped (flattened) into the shape (b, num_tokens, d_out), effectively combining the outputs from all heads
+#Additionally, we added a so-called output projection layer (self.out_proj) to MultiHeadAttention after combining the heads, which is not present in the CausalAttention class.
+#This output projection layer is not strictly necessary, but it is commonly used in many LLM architectures, which is why we added it here for completeness.
+#Even though the MultiHeadAttention class looks more complicated than the MultiHeadAttentionWrapper due to the additional reshaping and transposition of tensors, it is more efficient.
+#The reason is that we only need one matrix multiplication to compute the keys, for instance, keys = self.W_key(x) (the same is true for the queries and values).
+#In the MultiHeadAttentionWrapper, we needed to repeat this matrix multiplication, which is computationally one of the most expensive steps, for each attention head.
 
 a = torch.tensor([[[[0.2745, 0.6584, 0.2775, 0.8573], #A
 [0.8993, 0.0390, 0.9268, 0.7388],
@@ -114,5 +146,5 @@ print(mha.W_query)
 print(mha.W_key)
 print(mha.W_value)
 context_vecs = mha(batch)
-print(context_vecs)
+print("context_vecs:\n", context_vecs)
 print("context_vecs.shape:", context_vecs.shape)

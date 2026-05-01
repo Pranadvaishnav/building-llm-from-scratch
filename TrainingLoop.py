@@ -37,3 +37,31 @@ def calc_loss_loader(data_loader, model, device, num_batches=None):
             break
     return total_loss / num_batches
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Note:
+# Uncommenting the following lines will allow the code to run on Apple Silicon chips, if applicable,
+# which is approximately 2x faster than on an Apple CPU (as measured on an M3 MacBook Air).
+# However, the resulting loss values may be slightly different.
+
+#if torch.cuda.is_available():
+#    device = torch.device("cuda")
+#elif torch.backends.mps.is_available():
+#    device = torch.device("mps")
+#else:
+#    device = torch.device("cpu")
+#
+# print(f"Using {device} device.")
+
+
+torch.manual_seed(123) # For reproducibility due to the shuffling in the data loader
+model = GPTModel(GPT_CONFIG_124M)
+model.to(device)
+
+with torch.no_grad(): # Disable gradient tracking for efficiency because we are not training, yet
+    train_loss = calc_loss_loader(train_loader, model, device)
+    val_loss = calc_loss_loader(val_loader, model, device)
+
+print("Training loss:", train_loss)
+print("Validation loss:", val_loss)
+

@@ -168,3 +168,9 @@ def plot_losses(epochs_seen, tokens_seen, train_losses, val_losses):
 epochs_tensor = torch.linspace(0, num_epochs, len(train_losses))
 plot_losses(epochs_tensor, tokens_seen, train_losses, val_losses)
 
+torch.save(model.state_dict(), "gpt_model.pth")
+print("Model saved successfully.")
+loaded_model = GPTModel(GPT_CONFIG_124M)
+loaded_model.load_state_dict(torch.load("gpt_model.pth"))
+loaded_model.eval()
+print("Model loaded successfully.")
